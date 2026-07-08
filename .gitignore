@@ -1,0 +1,65 @@
+# ====================================================================
+# PYTHON / VIRTUAL ENVIRONMENT DESTINATIONS
+# ====================================================================
+# Ignore the virtual environment
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.*.local
+
+# Ignore compiled Python bytecode files
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# ====================================================================
+# NODE / REACT FRONTEND DESTINATIONS
+# ====================================================================
+# Ignore the massive frontend dependencies folder
+**/node_modules/
+**/dist/
+**/build/
+**/dist-ssr/
+
+# Ignore local Vite dev logs
+*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.pnpm-debug.log*
+
+# ====================================================================
+# SYSTEM / IDE CONFIGURATIONS
+# ====================================================================
+# Ignore OS-specific system files
+.DS_Store
+Thumbs.db
+
+# Ignore local IDE settings (VS Code / Cursor / PyCharm)
+.vscode/
+.idea/
+
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+dist-ssr
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
