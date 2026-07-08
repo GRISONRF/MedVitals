@@ -3,6 +3,9 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import requests
+import httpx
+import traceback
 
 app = FastAPI(title="MedVitals API")
 
@@ -52,8 +55,6 @@ class VitalObservation(BaseModel):
 
 class VerificationRequest(BaseModel):
     npi_number: str
-    provider_name: str
-
 
 # 2. MOCK DATA STORE (In-Memory Database)
 MOCK_PATIENTS = {
@@ -137,22 +138,80 @@ def get_patient_vitals(patient_id: str):
     print(f"Fetching vitals for patient ID: {patient_id}")
     return MOCK_VITALS[patient_id]
 
+
+# OLD VERSION THAT SIMULATES A PROVIDER CREDENTIAL VERIFICATION 
+# @app.post("/api/providers/verify")
+# async def verify_provider_credential(payload: VerificationRequest):
+#     """Simulates an asynchronous background check on a doctor's license."""
+#     # Simulate network latency of hitting a government state board API
+#     await asyncio.sleep(2) 
+    
+#     # Simple mock check rule for the MVP
+#     if len(payload.npi_number) != 10 or not payload.npi_number.isdigit():
+#         return {
+#             "status": "denied",
+#             "reason": "Invalid NPI formatting. Must be exactly 10 digits.",
+#             "verified": False
+#         }
+    
+#     return {
+#         "status": "verified",
+#         "verified": True,
+#         "assigned_credentials": f"MD-Active-{payload.npi_number[:4]}"
+#     }
+
 @app.post("/api/providers/verify")
 async def verify_provider_credential(payload: VerificationRequest):
-    """Simulates an asynchronous background check on a doctor's license."""
-    # Simulate network latency of hitting a government state board API
-    await asyncio.sleep(2) 
-    
-    # Simple mock check rule for the MVP
-    if len(payload.npi_number) != 10 or not payload.npi_number.isdigit():
-        return {
-            "status": "denied",
-            "reason": "Invalid NPI formatting. Must be exactly 10 digits.",
-            "verified": False
+    """Queries the real US Government NPPES Registry API for provider validation."""
+
+    print('inside the verifyyyyyyyyyyyyyyyyyyyyy')
+    print(payload.npi_number)
+    nppes_url = f"https://npiregistry.cms.hhs.gov/api/?number={payload.npi_number}&enumeration_type=&taxonomy_description=&name_purpose=&first_name=&use_first_name_alias=&last_name=&organization_name=&address_purpose=&city=&state=&postal_code=&country_code=&limit=&skip=&pretty=&version=2.1"
+
+
+    try:
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-    
-    return {
-        "status": "verified",
-        "verified": True,
-        "assigned_credentials": f"MD-Active-{payload.npi_number[:4]}"
+
+        async with httpx.AsyncClient(headers=headers) as client:
+            response = await client.get(nppes_url, timeout=5.0)
+
+        print(response.text)
+
+        if response.status_code != 200:
+            print('not 200')
+            return {
+                "status": "error",
+                "verified": False,
+                "reason": f"Failed to reach NPPES API. Status code: {response.status_code}"
+            }
+
+        data = response.json()
+        print(f"Raw NPPES API response: {data['results'][0]['basic']}")
+        result_count = data.get("result_count", 0)
+
+        # If the government database returns 0 results, the NPI is fake or invalid:
+        if result_count == 0:
+            return {
+                "status": "denied",
+                "verified": False,
+                "reason": f"No active medical provider registry found for NPI: {payload.npi_number}"            
+            }
+        
+        return {
+            "status": "verified",
+            "verified": True,
+            "provider_name": f"{data['results'][0]['basic']['first_name']} {data['results'][0]['basic']['last_name']}",
+            "assigned_credentials": f"MD-Active-{payload.npi_number[:4]}"
+        }
+
+    except Exception as e:
+        print('errorrrrr')
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "verified": False,
+            "reason": f"Internal system error during processing: {str(e)}"
     }

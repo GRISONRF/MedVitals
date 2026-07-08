@@ -9,7 +9,7 @@ function App() {
   
   // Provider Form State
   const [npi, setNpi] = useState('');
-  const [docName, setDocName] = useState('');
+  // const [docName, setDocName] = useState('');
   const [verificationResult, setVerificationResult] = useState<any>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -42,10 +42,15 @@ function App() {
       const response = await fetch('http://127.0.0.1:8000/api/providers/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ npi_number: npi, provider_name: docName })
+        body: JSON.stringify({ npi_number: npi})
+        // body: JSON.stringify({ npi_number: npi, provider_name: docName })
+
       });
       const data = await response.json();
+      console.log("Backend payload received:", data);
+      console.log("Doctor Name:", data.provider_name);
       setVerificationResult(data);
+
     } catch (error) {
       console.error("Verification failed", error);
     } finally {
@@ -96,13 +101,13 @@ function App() {
           <p className="text-xs text-gray-400 mb-4">Simulates background license validation API check</p>
 
           <form onSubmit={handleVerify} className="space-y-4">
-            <div>
+            {/* <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Provider Full Name</label>
               <input 
                 type="text" required value={docName} onChange={e => setDocName(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded-md" placeholder="Dr. Alice Smith"
               />
-            </div>
+            </div> */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">National Provider Identifier (10-Digit NPI)</label>
               <input 
@@ -123,7 +128,24 @@ function App() {
             <div className={`mt-6 p-4 rounded-lg border ${verificationResult.verified ? 'bg-green-50 border-green-200 text-green-900' : 'bg-red-50 border-red-200 text-red-900'}`}>
               <h4 className="font-bold mb-1">Verification Status: {verificationResult.status.toUpperCase()}</h4>
               {verificationResult.verified ? (
-                <p className="text-sm">License clear. Assigned credential string: <code>{verificationResult.assigned_credentials}</code></p>
+                <div className="text-sm space-y-1">
+                  {/* Match your new backend key: provider_name */}
+                  <p><strong>Verified Clinician:</strong> {verificationResult.provider_name}</p>
+                  <p><strong>License Hash:</strong> <code>{verificationResult.assigned_credentials}</code></p>
+                  {/* NEW LINK COMPONENT */}
+                  <p>
+                    <strong>Registry Profile:</strong>{' '}
+                    <a 
+                      href={`https://npiregistry.cms.hhs.gov/provider-view/${npi}`}
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 underline font-medium inline-flex items-center gap-1"
+                    >
+                      Clinician's Registry Link
+                      <span className="text-xs">↗</span>
+                    </a>
+                  </p>
+                </div>
               ) : (
                 <p className="text-sm">Alert: {verificationResult.reason}</p>
               )}
