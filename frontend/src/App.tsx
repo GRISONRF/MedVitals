@@ -25,7 +25,10 @@ function App() {
   useEffect(() => {
     fetch(`http://127.0.0.1:8000/api/patients/${selectedId}/vitals`)
       .then(res => res.json())
-      .then(data => setVitals(data))
+      .then(data => {
+      console.log("Fetched vitals:", data)
+      setVitals(data);
+    })
       .catch(err => console.error("Error fetching vitals", err));
   }, [selectedId]);
 
@@ -80,8 +83,8 @@ function App() {
           <div className="space-y-3">
             {vitals.map(v => (
               <div key={v.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="font-medium text-gray-700">{v.code}</span>
-                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-sm">{v.value}</span>
+                <span className="font-medium text-gray-700">{v.code.text}</span>
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-sm">{v.valueQuantity.value} {v.valueQuantity.unit}</span>
               </div>
             ))}
           </div>
