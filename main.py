@@ -1,3 +1,4 @@
+from mock_db import MOCK_PATIENTS, MOCK_VITALS
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,78 +62,11 @@ class VitalObservation(BaseModel):
 class VerificationRequest(BaseModel):
     npi_number: str
 
-# 2. MOCK DATA STORE (In-Memory Database)
-MOCK_PATIENTS = {
-    "1": FHIRPatient(
-        id="1",
-        resourceType="Patient",
-        name=[HumanName(given=["Jane", "Marie"], family="Doe")],
-        gender="female",
-        birthDate="1990-05-12"
-    ),
-    "2": FHIRPatient(
-        id="2",
-        resourceType="Patient",
-        name=[HumanName(given=["John", "Robert"], family="Smith")],
-        gender="male",
-        birthDate="1985-11-23"
-    )
-}
-
-MOCK_VITALS = {
-    "1": [
-        {
-            "resourceType": "Observation",
-            "id": "v1",
-            "status": "final",
-            "code": {
-                "text": "Heart Rate",
-                "coding": [{"system": "http://loinc.org", "code": "8867-4", "display": "Heart rate"}]
-            },
-            "valueQuantity": {
-                "value": 72,
-                "unit": "bpm"
-            },
-            "effectiveDateTime": "2026-07-08T10:00:00Z"
-        },
-        {
-            "resourceType": "Observation",
-            "id": "v2",
-            "status": "final",
-            "code": {
-                "text": "Blood Pressure",
-                "coding": [{"system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel"}]
-            },
-            "valueQuantity": {
-                "value": 120, # In a full production app this would be a nested component, but keeping it clean for our MVP value quantity
-                "unit": "mmHg"
-            },
-            "effectiveDateTime": "2026-07-08T10:00:00Z"
-        }
-    ],
-    "2": [
-        {
-            "resourceType": "Observation",
-            "id": "v3",
-            "status": "final",
-            "code": {
-                "text": "Heart Rate",
-                "coding": [{"system": "http://loinc.org", "code": "8867-4", "display": "Heart rate"}]
-            },
-            "valueQuantity": {
-                "value": 85,
-                "unit": "bpm"
-            },
-            "effectiveDateTime": "2026-07-08T09:30:00Z"
-        }
-    ]
-}
-
-
 # 3. API ENDPOINTS
 @app.get("/api/patients", response_model=List[FHIRPatient])
 def get_all_patients():
     """Returns a list of all patients in the system."""
+    # FastAPI automatically reads these dictionaries and parses them into FHIRPatient shapes
     return list(MOCK_PATIENTS.values())
 
 @app.get("/api/patients/{patient_id}/vitals", response_model=List[VitalObservation])
@@ -261,3 +195,61 @@ def check_export_job_status(job_id: str):
     return EXPORT_JOBS[job_id]
 
 
+@app.get("/api/patients/{patient_id}/cds-services")
+def evaluate_clinical_rules(patient_id: str):
+    """
+    Evaluates active FHIR vitals data against automated clinical rules.
+    Returns a collection of structured CDS Hooks 'Cards'.
+    """
+
+    if patient_id not in MOCK_VITALS:
+        return {"cards": []}
+    
+    cards = []
+    patient_vitals = MOCK_VITALS[patient_id]
+
+    # Loop through the patient's observations to check for rule breaches
+    for vital in patient_vitals:
+        vital_name = vital["code"]["text"]
+        vital_value = vital["valueQuantity"]["value"]
+        vital_unit = vital["valueQuantity"]["unit"]
+        
+        # Rule 1: High Heart Rate Check (Tachycardia Alert)
+        if vital_name == "Heart Rate" and vital_value > 80:
+            cards.append({
+                "uuid": str(uuid.uuid4()),
+                "summary": "Tachycardia Detected (Elevated Heart Rate)",
+                "indicator": "warning",  # Options: info, warning, critical
+                "source": {
+                    "label": "MedVitals Automated Clinical Engine",
+                    "url": "https://example.com/clinical-guidelines"
+                },
+                "detail": f"The patient's current heart rate is {vital_value} {vital_unit}, which exceeds the standard resting baseline threshold of 80 bpm.",
+                "suggestions": [
+                    {
+                        "label": "Schedule Cardiology Follow-up",
+                        "uuid": str(uuid.uuid4())
+                    }
+                ]
+            })
+            
+        # Rule 2: High Blood Pressure Panel Check (Hypertension Stage 1)
+        if vital_name == "Blood Pressure" and vital_value >= 120:
+            cards.append({
+                "uuid": str(uuid.uuid4()),
+                "summary": "Elevated Blood Pressure Warning",
+                "indicator": "critical",
+                "source": {
+                    "label": "AHA Hypertension Guidelines",
+                    "url": "https://example.com/aha"
+                },
+                "detail": f"Systolic reading logged at {vital_value} {vital_unit}. Continuous readings in this range require evaluation for Stage 1 Hypertension.",
+                "suggestions": [
+                    {
+                        "label": "Order 24-Hour BP Monitoring Profile",
+                        "uuid": str(uuid.uuid4())
+                    }
+                ]
+            })
+
+    return {"cards": cards}

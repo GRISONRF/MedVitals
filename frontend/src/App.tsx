@@ -11,6 +11,8 @@ function App() {
   const [exportStatus, setExportStatus] = useState<string>('idle'); // idle, processing, completed
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  const [cdsCards, setCdsCards] = useState<any[]>([]);
   
   // Provider Form State
   const [npi, setNpi] = useState('');
@@ -35,6 +37,15 @@ function App() {
       setVitals(data);
     })
       .catch(err => console.error("Error fetching vitals", err));
+
+    fetch(`http://127.0.0.1:8000/api/patients/${selectedId}/cds-services`)
+    .then(res => res.json())
+    .then(data => {
+      console.log("Evaluated CDS Cards:", data.cards);
+      setCdsCards(data.cards);
+    })
+    .catch(err => console.error("Error evaluating clinical tools", err));
+
   }, [selectedId]);
 
   // Handle Medallion-style verification submission
@@ -128,7 +139,58 @@ function App() {
           </select>
 
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-2">Live Vital Observations</h3>
-          <div className="space-y-3">
+          {/* REAL-TIME CDS HOOK ALERTS CONTAINER */}
+          {cdsCards.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-gray-100 space-y-3 mb-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-red-500 flex items-center gap-1">
+                ⚠️ Real-Time Clinical Decision Alerts (CDS Hooks)
+              </h4>
+              
+              {cdsCards.map(card => (
+                <div 
+                  key={card.uuid} 
+                  className={`p-4 rounded-lg border text-sm relative overflow-hidden ${
+                    card.indicator === 'critical' 
+                      ? 'bg-red-50 border-red-200 text-red-900' 
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  {/* Indicator accent bar on the left edge */}
+                  <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${card.indicator === 'critical' ? 'bg-red-600' : 'bg-amber-500'}`} />
+                  
+                  <div className="pl-2">
+                    <h5 className="font-bold flex items-center justify-between">
+                      {card.summary}
+                      <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${card.indicator === 'critical' ? 'bg-red-200 text-red-900' : 'bg-amber-200 text-amber-900'}`}>
+                        {card.indicator}
+                      </span>
+                    </h5>
+                    <p className="text-xs opacity-90 mt-1">{card.detail}</p>
+                    
+                    {/* Render automated clinical recommendation suggestion chips */}
+                    {card.suggestions && card.suggestions.map((sug: any) => (
+                      <button 
+                        key={sug.uuid}
+                        onClick={() => alert(`Order Initiated: ${sug.label}`)}
+                        className={`mt-3 text-xs font-semibold px-2.5 py-1 rounded border transition shadow-sm ${
+                          card.indicator === 'critical'
+                            ? 'bg-white border-red-300 text-red-700 hover:bg-red-100'
+                            : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-100'
+                        }`}
+                      >
+                        ⚡ Action: {sug.label}
+                      </button>
+                    ))}
+                    
+                    <div className="text-[10px] opacity-50 mt-2 text-right">
+                      Source: {card.source.label}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="space-y-3 mb-4">
             {vitals.map(v => (
               <div key={v.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="font-medium text-gray-700">{v.code.text}</span>
