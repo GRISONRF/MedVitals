@@ -35,7 +35,6 @@ When a patient profile is selected, the application requests the raw FHIR `Obser
 <img width="470" height="615" alt="Screenshot 2026-07-08 214954" src="https://github.com/user-attachments/assets/17e9a41f-2c7d-4cc3-97d1-47e78b952044" />
 
 
-
 ### 2. Provider Credentialing Engine (Live CMS NPPES Sync)
 Entering a 10-digit National Provider Identifier (NPI) hits the live production federal registry, stripping out server network transport blocks and extracting nested practitioner taxonomy parameters instantly.
 
