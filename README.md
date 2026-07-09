@@ -26,23 +26,27 @@ A full-stack medical operations platform engineered to demonstrate enterprise-gr
 
 ## 📷 App Walkthrough & Features
 
-![Dashboard Main View](https://raw.githubusercontent.com/GRISONRF/MedVitals/main/images/images/full.png)
+<img width="650" alt="Screenshot 2026-07-08 214853" src="https://github.com/user-attachments/assets/3482ea03-2150-4dc4-aa72-b363c8c9af08" />
+
 
 ### 1. Patient Clinical Tracker (HL7 FHIR Format) & CDS Hooks
 When a patient profile is selected, the application requests the raw FHIR `Observation` payload. Simultaneously, the **CDS Hooks rules engine** runs on the backend. If metrics cross critical thresholds (such as high heart rate or blood pressure), color-coded alert panels are dynamically injected with embedded action scripts.
 
-![Clinical Tracker](https://github.com/GRISONRF/MedVitals/blob/images/images/heart-blood.png)
+<img width="470" height="615" alt="Screenshot 2026-07-08 214954" src="https://github.com/user-attachments/assets/17e9a41f-2c7d-4cc3-97d1-47e78b952044" />
+
 
 
 ### 2. Provider Credentialing Engine (Live CMS NPPES Sync)
 Entering a 10-digit National Provider Identifier (NPI) hits the live production federal registry, stripping out server network transport blocks and extracting nested practitioner taxonomy parameters instantly.
 
-![Provider Verification Module](https://github.com/GRISONRF/MedVitals/main/images/images/credentials.png)
+<img width="466" height="615" alt="Screenshot 2026-07-08 215723" src="https://github.com/user-attachments/assets/efa2532e-619c-4207-8cde-2bc3ac61ca35" />
+
 
 ### 3. Asynchronous Population $export Pipeline (.ndjson)
 Clicking the bulk export initiator dispatches an asynchronous job task. The UI displays state progress values via a long-polling hook routine until a streamable, standardized `.ndjson` bulk file token is generated.
 
-![Bulk Export In Progress](https://github.com/GRISONRF/MedVitals/main/images/images/bulk-export.png)
+<img width="938" height="178" alt="Screenshot 2026-07-08 215742" src="https://github.com/user-attachments/assets/9b88b02c-7af7-4472-8973-cbe1bae69029" />
+
 
 ---
 
