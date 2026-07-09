@@ -1,13 +1,18 @@
-import asyncio
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import requests
 import httpx
 import traceback
+import uuid
+import time
+from fastapi import BackgroundTasks
 
 app = FastAPI(title="MedVitals API")
+
+# Global in-memory storage simulating a background job runner tracking state
+# In a massive system, this would be Redis or PostgreSQL
+EXPORT_JOBS = {}
 
 # CRITICAL FOR PORT 3000 TO TALK TO PORT 8000
 # This allows your React frontend to securely request data from this backend
@@ -164,8 +169,6 @@ def get_patient_vitals(patient_id: str):
 async def verify_provider_credential(payload: VerificationRequest):
     """Queries the real US Government NPPES Registry API for provider validation."""
 
-    print('inside the verifyyyyyyyyyyyyyyyyyyyyy')
-    print(payload.npi_number)
     nppes_url = f"https://npiregistry.cms.hhs.gov/api/?number={payload.npi_number}&enumeration_type=&taxonomy_description=&name_purpose=&first_name=&use_first_name_alias=&last_name=&organization_name=&address_purpose=&city=&state=&postal_code=&country_code=&limit=&skip=&pretty=&version=2.1"
 
 
@@ -178,10 +181,7 @@ async def verify_provider_credential(payload: VerificationRequest):
         async with httpx.AsyncClient(headers=headers) as client:
             response = await client.get(nppes_url, timeout=5.0)
 
-        print(response.text)
-
         if response.status_code != 200:
-            print('not 200')
             return {
                 "status": "error",
                 "verified": False,
@@ -189,7 +189,6 @@ async def verify_provider_credential(payload: VerificationRequest):
             }
 
         data = response.json()
-        print(f"Raw NPPES API response: {data['results'][0]['basic']}")
         result_count = data.get("result_count", 0)
 
         # If the government database returns 0 results, the NPI is fake or invalid:
@@ -208,10 +207,57 @@ async def verify_provider_credential(payload: VerificationRequest):
         }
 
     except Exception as e:
-        print('errorrrrr')
         traceback.print_exc()
         return {
             "status": "error",
             "verified": False,
             "reason": f"Internal system error during processing: {str(e)}"
     }
+
+def simulate_heavy_data_compilation(job_id: str):
+    """
+    Simulates a background worker thread reading thousands of database records,
+    converting them to HL7 FHIR bundles, and writing them to a bulk file.
+    """
+    # Wait 8 seconds to give time to see the "Processing" state on the UI
+    time.sleep(8) 
+    
+    # Update the job state machine once the file is "ready"
+    EXPORT_JOBS[job_id] = {
+        "status": "completed",
+        "progress": 100,
+        "download_url": f"https://npiregistry.cms.hhs.gov/api/?number=1811988041&version=2.1", # Using a stable doctor URL as a dummy file download target
+        "generated_at": "2026-07-08T21:00:00Z",
+        "file_type": "application/fhir+ndjson"
+    }
+
+@app.post("/api/patients/$export", status_code=202)
+async def initiate_bulk_export(background_tasks: BackgroundTasks):
+    """Kicks off an asynchronous FHIR Bulk Data Export pipeline.
+    Returns an immediate HTTP 202 Accepted status string."""
+
+    job_id = str(uuid.uuid4())
+    EXPORT_JOBS[job_id] = {"status": "processing", "progress": 25, "download_url": None}
+
+    # FastAPI's built-in BackgroundTasks hands this function off to a separate
+    # worker thread so the main execution path doesn't lock up or freeze
+    background_tasks.add_task(simulate_heavy_data_compilation, job_id)
+
+    # In a real app, I'd would pass this task to Celery or an external queue worker
+    return {
+        "status": "Accepted",
+        "job_id": job_id,
+        "check_status_at": f"/api/jobs/{job_id}"
+    }
+
+@app.get("/api/jobs/{job_id}")
+def check_export_job_status(job_id: str):
+    """
+    Polling endpoint allowing clients to inspect the runtime state of a background task.
+    """
+    if job_id not in EXPORT_JOBS:
+        raise HTTPException(status_code=404, detail="Bulk export execution token not found")
+        
+    return EXPORT_JOBS[job_id]
+
+
