@@ -6,6 +6,13 @@ function App() {
   const [patients, setPatients] = useState<FHIRPatient[]>([]);
   const [selectedId, setSelectedId] = useState<string>('1');
   const [vitals, setVitals] = useState<VitalObservation[]>([]);
+
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<string>('idle'); // idle, processing, completed
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  const [cdsCards, setCdsCards] = useState<any[]>([]);
   
   // Provider Form State
   const [npi, setNpi] = useState('');
@@ -30,6 +37,15 @@ function App() {
       setVitals(data);
     })
       .catch(err => console.error("Error fetching vitals", err));
+
+    fetch(`http://127.0.0.1:8000/api/patients/${selectedId}/cds-services`)
+    .then(res => res.json())
+    .then(data => {
+      console.log("Evaluated CDS Cards:", data.cards);
+      setCdsCards(data.cards);
+    })
+    .catch(err => console.error("Error evaluating clinical tools", err));
+
   }, [selectedId]);
 
   // Handle Medallion-style verification submission
@@ -55,6 +71,44 @@ function App() {
       console.error("Verification failed", error);
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleBulkExport = async () => {
+    setExportStatus('processing');
+    setExportProgress(25);
+    setDownloadUrl(null);
+
+    try {
+      // 1. Kick off the asynchronous process
+      const response = await fetch('http://127.0.0.1:8000/api/patients/$export', {
+        method: 'POST'
+      });
+      const initiationData = await response.json();
+      const jobId = initiationData.job_id;
+      setCurrentJobId(jobId);
+
+      // 2. Start a polling clock that ticks every 2 seconds
+      const pollingInterval = setInterval(async () => {
+        const statusResponse = await fetch(`http://127.0.0.1:8000/api/jobs/${jobId}`);
+        const jobData = await statusResponse.json();
+
+        console.log("Polling background job state:", jobData);
+
+        if (jobData.status === 'completed') {
+          setExportStatus('completed');
+          setExportProgress(100);
+          setDownloadUrl(jobData.download_url);
+          clearInterval(pollingInterval); // Stop ticking the clock!
+        } else {
+          // Boost up the mock loading meter steps while compiling
+          setExportProgress(prev => (prev < 90 ? prev + 15 : prev));
+        }
+      }, 2000);
+
+    } catch (error) {
+      console.error("Bulk export execution failed", error);
+      setExportStatus('idle');
     }
   };
 
@@ -85,7 +139,58 @@ function App() {
           </select>
 
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-2">Live Vital Observations</h3>
-          <div className="space-y-3">
+          {/* REAL-TIME CDS HOOK ALERTS CONTAINER */}
+          {cdsCards.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-gray-100 space-y-3 mb-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-red-500 flex items-center gap-1">
+                ⚠️ Real-Time Clinical Decision Alerts (CDS Hooks)
+              </h4>
+              
+              {cdsCards.map(card => (
+                <div 
+                  key={card.uuid} 
+                  className={`p-4 rounded-lg border text-sm relative overflow-hidden ${
+                    card.indicator === 'critical' 
+                      ? 'bg-red-50 border-red-200 text-red-900' 
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  {/* Indicator accent bar on the left edge */}
+                  <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${card.indicator === 'critical' ? 'bg-red-600' : 'bg-amber-500'}`} />
+                  
+                  <div className="pl-2">
+                    <h5 className="font-bold flex items-center justify-between">
+                      {card.summary}
+                      <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${card.indicator === 'critical' ? 'bg-red-200 text-red-900' : 'bg-amber-200 text-amber-900'}`}>
+                        {card.indicator}
+                      </span>
+                    </h5>
+                    <p className="text-xs opacity-90 mt-1">{card.detail}</p>
+                    
+                    {/* Render automated clinical recommendation suggestion chips */}
+                    {card.suggestions && card.suggestions.map((sug: any) => (
+                      <button 
+                        key={sug.uuid}
+                        onClick={() => alert(`Order Initiated: ${sug.label}`)}
+                        className={`mt-3 text-xs font-semibold px-2.5 py-1 rounded border transition shadow-sm ${
+                          card.indicator === 'critical'
+                            ? 'bg-white border-red-300 text-red-700 hover:bg-red-100'
+                            : 'bg-white border-amber-300 text-amber-700 hover:bg-amber-100'
+                        }`}
+                      >
+                        ⚡ Action: {sug.label}
+                      </button>
+                    ))}
+                    
+                    <div className="text-[10px] opacity-50 mt-2 text-right">
+                      Source: {card.source.label}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="space-y-3 mb-4">
             {vitals.map(v => (
               <div key={v.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
                 <span className="font-medium text-gray-700">{v.code.text}</span>
@@ -152,6 +257,58 @@ function App() {
             </div>
           )}
         </section>
+
+        {/* FULL WIDTH LOWER SECTION: BULK DATA EXPORT PIPELINE */}
+        <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 md:col-span-2 mt-4">
+          <h2 className="text-xl font-semibold mb-2 text-purple-700">Enterprise FHIR Bulk Data Export Pipeline</h2>
+          <p className="text-xs text-gray-500 mb-6">Simulates an asynchronous server thread compressing complete clinical registries into a single flat .ndjson bundle payload.</p>
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-purple-50 rounded-lg border border-purple-100">
+            <div>
+              <h4 className="font-bold text-purple-900">Population Registry Data Extraction</h4>
+              <p className="text-xs text-purple-700 mt-1">Status: <span className="uppercase font-extrabold">{exportStatus}</span> {currentJobId && `(Token: ${currentJobId.slice(0,8)}...)`}</p>
+            </div>
+            
+            {exportStatus === 'idle' && (
+              <button 
+                onClick={handleBulkExport}
+                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-md transition shadow-sm text-sm"
+              >
+                Initialize population $export
+              </button>
+            )}
+
+            {exportStatus === 'processing' && (
+              <div className="w-full sm:w-64">
+                <div className="flex justify-between text-xs text-purple-700 mb-1 font-medium">
+                  <span>Compiling Flat FHIR stream...</span>
+                  <span>{exportProgress}%</span>
+                </div>
+                <div className="w-full bg-purple-200 h-2 rounded-full overflow-hidden">
+                  <div className="bg-purple-600 h-full transition-all duration-500" style={{ width: `${exportProgress}%` }}></div>
+                </div>
+              </div>
+            )}
+
+            {exportStatus === 'completed' && downloadUrl && (
+              <div className="flex items-center gap-3">
+                <a 
+                  href={downloadUrl} target="_blank" rel="noopener noreferrer"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md transition shadow-sm text-sm inline-flex items-center gap-2"
+                >
+                  Download .ndjson Bundle ⬇
+                </a>
+                <button 
+                  onClick={() => setExportStatus('idle')}
+                  className="text-xs text-purple-600 hover:underline font-medium"
+                >
+                  Reset pipeline
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+
       </main>
     </div>
   );
