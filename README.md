@@ -26,13 +26,12 @@ A full-stack medical operations platform engineered to demonstrate enterprise-gr
 
 ## 📷 App Walkthrough & Features
 
-![Dashboard Main View](https://github.com/GRISONRF/MedVitals/main/images/images/full.png)
-
+![Dashboard Main View](https://raw.githubusercontent.com/GRISONRF/MedVitals/main/images/images/full.png)
 
 ### 1. Patient Clinical Tracker (HL7 FHIR Format) & CDS Hooks
 When a patient profile is selected, the application requests the raw FHIR `Observation` payload. Simultaneously, the **CDS Hooks rules engine** runs on the backend. If metrics cross critical thresholds (such as high heart rate or blood pressure), color-coded alert panels are dynamically injected with embedded action scripts.
 
-![Clinical Tracker](https://github.com/GRISONRF/MedVitals/main/images/images/heart-blood.png)
+![Clinical Tracker](https://github.com/GRISONRF/MedVitals/blob/images/images/heart-blood.png)
 
 
 ### 2. Provider Credentialing Engine (Live CMS NPPES Sync)
